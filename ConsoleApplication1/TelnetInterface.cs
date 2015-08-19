@@ -38,6 +38,11 @@ namespace MinimalisticTelnet
 
         }
 
+        public void Close()
+        {
+            tcpSocket.Close();
+        }
+
         public string Login(string Username, string Password, int LoginTimeOutMs)
         {
             int oldTimeOutMs = TimeOutMs;
