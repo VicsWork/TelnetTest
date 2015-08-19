@@ -19,11 +19,42 @@ namespace powercal
         {
             static void Main(string[] args)
             {
+
+                BoardTypes board_type = BoardTypes.Humpback;
+
+                double voltage_low_limit = 0.0;
+                double voltage_reference = 0.0;
+                double current_reference = 0.0;
+
+                string cmd_prefix;
+
+                switch (board_type)
+                {
+                    case BoardTypes.Humpback:
+                        voltage_low_limit = 200;
+                        voltage_reference = 240;
+                        current_reference = 15;
+                        cmd_prefix = "cs5490";
+                        break;
+                    case BoardTypes.Zebrashark:
+                        voltage_low_limit = 80;
+                        voltage_reference = 120;
+                        current_reference = 15;
+                        cmd_prefix = "cs5480";
+                        break;
+                    default:
+                        cmd_prefix = "cs5490";
+                        voltage_low_limit = 80;
+                        voltage_reference = 120;
+                        current_reference = 15;
+                        break;
+                }
+
                 //create a new telnet connection
                 TelnetConnection tc = new TelnetConnection("localhost", 4900);
                 string datain = tc.Read();
 
-                string msg = patch(BoardTypes.Zebrashark, 0x400000, 0x400000);
+                string msg = patch(board_type, 0x400000, 0x400000);
                 Thread.Sleep(2000);
                 datain = tc.Read();
 
@@ -32,7 +63,7 @@ namespace powercal
                 datain = tc.Read();
                 updateOutputStatus(datain);
 
-                tc.WriteLine("cu cs5480_pinfo");
+                tc.WriteLine( string.Format("cu {0}_pinfo", cmd_prefix) );
                 Thread.Sleep(500);
                 datain = tc.Read();
                 updateOutputStatus(datain);
@@ -42,13 +73,14 @@ namespace powercal
                 double current_cs = 0.0;
                 double voltage_cs = 0.0;
                 int i = 0;
+                int fail_count = 0;
                 while(true)
                 {
                     //tc.WriteLine("cu cs5480_start_conv");
                     //tc.WriteLine("cu cs5480_start_single_conv");
                     //Thread.Sleep(1000);
 
-                    tc.WriteLine("cu cs5480_pload");
+                    tc.WriteLine(string.Format("cu {0}_pload", cmd_prefix));
                     Thread.Sleep(500);
                     datain = tc.Read();
                     updateOutputStatus(datain);
@@ -68,7 +100,7 @@ namespace powercal
                             string current_hexstr = match.Groups[1].Value;
                             int current_int = Convert.ToInt32(current_hexstr, 16);
                             current_cs = RegHex_ToDouble(current_int);
-                            current_cs = current_cs * 15 / 0.6;
+                            current_cs = current_cs * current_reference / 0.6;
 
                             voltage_cs = 0.0;
                             match = Regex.Match(datain, rawVoltagePattern);
@@ -77,14 +109,18 @@ namespace powercal
                                 string voltage_hexstr = match.Groups[1].Value;
                                 int volatge_int = Convert.ToInt32(voltage_hexstr, 16);
                                 voltage_cs = RegHex_ToDouble(volatge_int);
-                                voltage_cs = voltage_cs * 120 / 0.6;
+                                voltage_cs = voltage_cs * voltage_reference / 0.6;
                             }
 
-                            if (voltage_cs > 80)
+                            if (voltage_cs > voltage_low_limit)
                             {
                                 i++;
                                 msg = string.Format("Cirrus I = {0:F8}, V = {1:F8}, P = {2:F8}", current_cs, voltage_cs, current_cs * voltage_cs);
                                 updateOutputStatus(msg);
+                            }
+                            else
+                            {
+                                fail_count++;
                             }
                             if (i > 1)
                                 break;
@@ -94,6 +130,7 @@ namespace powercal
                     Thread.Sleep(1000);
                 }
 
+                /// The meter measurements
                 MultiMeter meter = new MultiMeter("COM1");
                 meter.OpenComPort();
                 meter.SetToRemote();
@@ -113,23 +150,24 @@ namespace powercal
                 msg = string.Format("Meter I = {0:F8}, V = {1:F8}, P = {2:F8}", current_meter, voltage_meter, current_meter * voltage_meter);
                 updateOutputStatus(msg);
 
-                double current_gain = current_cs / current_meter;
+                // Gain calucalation
+                double current_gain = current_meter/current_cs;
                 //double current_gain = current_meter / current_cs;
                 int current_gain_int = (int)(current_gain * 0x400000);
                 msg = string.Format("Current Gain = {0:F8} (0x{1:X})", current_gain, current_gain_int);
                 updateOutputStatus(msg);
 
-                double voltage_gain = voltage_cs / voltage_meter;
+                double voltage_gain = voltage_meter/voltage_cs;
                 int voltage_gain_int = (int)(voltage_gain * 0x400000);
                 msg = string.Format("Voltage Gain = {0:F8} (0x{1:X})", voltage_gain, voltage_gain_int);
                 updateOutputStatus(msg);
 
-                msg = patch(BoardTypes.Zebrashark, voltage_gain_int, current_gain_int);
+                msg = patch(board_type, voltage_gain_int, current_gain_int);
                 Thread.Sleep(2000);
                 datain = tc.Read();
                 updateOutputStatus(datain);
 
-                tc.WriteLine("cu cs5480_pinfo");
+                tc.WriteLine(string.Format("cu {0}_pinfo", cmd_prefix));
                 Thread.Sleep(500);
                 datain = tc.Read();
                 updateOutputStatus(datain);
@@ -137,7 +175,7 @@ namespace powercal
                 i = 0;
                 while (true)
                 {
-                    tc.WriteLine("cu cs5480_pload");
+                    tc.WriteLine(string.Format("cu {0}_pload", cmd_prefix));
                     Thread.Sleep(500);
                     datain = tc.Read();
                     Debug.WriteLine(datain);
@@ -157,7 +195,7 @@ namespace powercal
                             string current_hexstr = match.Groups[1].Value;
                             int current_int = Convert.ToInt32(current_hexstr, 16);
                             current_cs = RegHex_ToDouble(current_int);
-                            current_cs = current_cs * 15 / 0.6;
+                            current_cs = current_cs * current_reference / 0.6;
 
                             voltage_cs = 0.0;
                             match = Regex.Match(datain, rawVoltagePattern);
@@ -166,10 +204,10 @@ namespace powercal
                                 string voltage_hexstr = match.Groups[1].Value;
                                 int volatge_int = Convert.ToInt32(voltage_hexstr, 16);
                                 voltage_cs = RegHex_ToDouble(volatge_int);
-                                voltage_cs = voltage_cs * 120 / 0.6;
+                                voltage_cs = voltage_cs * voltage_reference / 0.6;
                             }
 
-                            if (voltage_cs > 80)
+                            if (voltage_cs > voltage_low_limit)
                             {
                                 i++;
                                 msg = string.Format("Cirrus I = {0:F8}, V = {1:F8}, P = {2:F8}", current_cs, voltage_cs, current_cs * voltage_cs);
@@ -193,13 +231,13 @@ namespace powercal
                 Debug.WriteLine(line);
             }
 
-            static string patch(BoardTypes board, int voltage_gain, int current_gain)
+            static string patch(BoardTypes board_type, int voltage_gain, int current_gain)
             {
                 Ember ember = new Ember();
                 ember.EmberBinPath = @"C:\Program Files (x86)\Ember\ISA3 Utilities\bin";
                 ember.BatchFilePath = @"C:\Users\victormartin\.calibration\patchit.bat";
                 string msg;
-                switch (board)
+                switch (board_type)
                 {
                     case (powercal.BoardTypes.Humpback):
                         ember.VAdress = 0x08080980;
