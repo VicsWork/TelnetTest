@@ -8,10 +8,12 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Diagnostics;
 
+using CommandLine.Utility;
+
 
 namespace powercal
 {
-    enum BoardTypes { Zebrashark, Humpback, Hooktooth, Milkshark };
+    enum BoardTypes { zebrashark, humpback, hooktooth, milkshark };
 
     class Calibrate
     {
@@ -19,8 +21,14 @@ namespace powercal
         {
             static void Main(string[] args)
             {
+                Arguments cmdLine_args = new Arguments(args);
+                if (cmdLine_args["board"] != null)
+                {
+                    
+                    Console.WriteLine("Board set to '{0}'", cmdLine_args["board"]);
+                }
 
-                BoardTypes board_type = BoardTypes.Humpback;
+                BoardTypes board_type = BoardTypes.humpback;
 
                 double voltage_low_limit = 0.0;
                 double voltage_reference = 0.0;
@@ -30,13 +38,13 @@ namespace powercal
 
                 switch (board_type)
                 {
-                    case BoardTypes.Humpback:
+                    case BoardTypes.humpback:
                         voltage_low_limit = 200;
                         voltage_reference = 240;
                         current_reference = 15;
                         cmd_prefix = "cs5490";
                         break;
-                    case BoardTypes.Zebrashark:
+                    case BoardTypes.zebrashark:
                         voltage_low_limit = 80;
                         voltage_reference = 120;
                         current_reference = 15;
@@ -63,7 +71,7 @@ namespace powercal
                 datain = tc.Read();
                 updateOutputStatus(datain);
 
-                tc.WriteLine( string.Format("cu {0}_pinfo", cmd_prefix) );
+                tc.WriteLine(string.Format("cu {0}_pinfo", cmd_prefix));
                 Thread.Sleep(500);
                 datain = tc.Read();
                 updateOutputStatus(datain);
@@ -74,7 +82,7 @@ namespace powercal
                 double voltage_cs = 0.0;
                 int i = 0;
                 int fail_count = 0;
-                while(true)
+                while (true)
                 {
                     //tc.WriteLine("cu cs5480_start_conv");
                     //tc.WriteLine("cu cs5480_start_single_conv");
@@ -151,13 +159,13 @@ namespace powercal
                 updateOutputStatus(msg);
 
                 // Gain calucalation
-                double current_gain = current_meter/current_cs;
+                double current_gain = current_meter / current_cs;
                 //double current_gain = current_meter / current_cs;
                 int current_gain_int = (int)(current_gain * 0x400000);
                 msg = string.Format("Current Gain = {0:F8} (0x{1:X})", current_gain, current_gain_int);
                 updateOutputStatus(msg);
 
-                double voltage_gain = voltage_meter/voltage_cs;
+                double voltage_gain = voltage_meter / voltage_cs;
                 int voltage_gain_int = (int)(voltage_gain * 0x400000);
                 msg = string.Format("Voltage Gain = {0:F8} (0x{1:X})", voltage_gain, voltage_gain_int);
                 updateOutputStatus(msg);
@@ -239,7 +247,7 @@ namespace powercal
                 string msg;
                 switch (board_type)
                 {
-                    case (powercal.BoardTypes.Humpback):
+                    case (powercal.BoardTypes.humpback):
                         ember.VAdress = 0x08080980;
                         ember.IAdress = 0x08080984;
                         ember.RefereceAdress = 0x08080988;
@@ -249,9 +257,9 @@ namespace powercal
                         ember.IRefereceValue = 0x0F; // 15 A
 
                         break;
-                    case (powercal.BoardTypes.Zebrashark):
-                    case (powercal.BoardTypes.Hooktooth):
-                    case (powercal.BoardTypes.Milkshark):
+                    case (powercal.BoardTypes.zebrashark):
+                    case (powercal.BoardTypes.hooktooth):
+                    case (powercal.BoardTypes.milkshark):
                         ember.VAdress = 0x08040980;
                         ember.IAdress = 0x08040984;
                         ember.ACOffsetAdress = 0x080409CC;
